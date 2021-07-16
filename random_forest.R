@@ -78,8 +78,57 @@ for (var in y_cols) {
 end_time <- Sys.time()
 end_time - start_time
 
-# Store results in data frame
+# Store parameters and results of best models in data frame
 results <- as.data.frame(do.call(rbind, best_parameters))
+
+rm(gs_results, best_parameters)
+
+#===============================================================================
+# Run best models and attach predicted values to original data frame
+
+best_RF_model <- function(y_var, dat) {
+  
+  # Subset to non-missing variables for training model
+  dat_train <- dat[which(!is.na(dat[[y_var]])), ]
+  
+  # Keep full data for predictions
+  dat_test <- dat
+  
+  model <- ranger(
+    formula         = dat_train[[y_var]]~var1+var2+var3+var4+var5,
+    data            = dat_train, 
+    classification  = TRUE,
+    num.trees       = 500,
+    mtry            = results[y_var, ]$mtry,
+    min.node.size   = results[y_var, ]$node_size,
+    sample.fraction = results[y_var, ]$sampe_size,
+    importance      = 'impurity',
+    seed            = 123
+  )
+  
+  # Predict on full data
+  pred <- predict(model, dat_test)
+  dat_test$pred <- pred$predictions
+  
+  cat(paste0("Variable: ", y_var, '\n')) # print current variable
+  
+  # Accuracy on test data
+  test <- dat_test[which(!is.na(dat_test[[y_var]])), ]
+  cat(paste0('Accuracy on Test Data: ', sum(diag(table(test[, y_var], test$pred))) / sum(table(test[, y_var], test$pred)),
+             '\nConfusion Matrix:'))
+  
+  # Check that predictions line up reasonably well with train data set
+  print(table(test[, y_var], test$pred))
+  
+  assign(paste0(y_var, '_pred'), pred$predictions, envir = .GlobalEnv)
+  
+}
+
+# Get best model predictions for each y variable
+for (var in y_cols[1:3]) {
+  best_RF_model(y_var = var, dat = dat)
+  cat(paste0('----------\n'))
+}
 
 
 
