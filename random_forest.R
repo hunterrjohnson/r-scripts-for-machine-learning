@@ -120,15 +120,33 @@ best_RF_model <- function(y_var, dat) {
   # Check that predictions line up reasonably well with train data set
   print(table(test[, y_var], test$pred))
   
-  assign(paste0(y_var, '_pred'), pred$predictions, envir = .GlobalEnv)
+  # Assign predictions and variable importance to global environment
+  var_pred <<- pred$predictions
+  var_imp <<- model$variable.importance
   
 }
 
-# Get best model predictions for each y variable
+# Get best model predictions and variable importance for each y variable
+var_pred_list <- list()
+var_imp_list <- list()
 for (var in y_cols[1:3]) {
   best_RF_model(y_var = var, dat = dat)
-  cat(paste0('----------\n'))
+  cat(paste0('--------------------\n'))
+  var_pred_list[[length(var_pred_list) + 1]] <- var_pred
+  var_imp_list[[length(var_imp_list) + 1]] <- var_imp
 }
+names(var_pred_list) <- y_cols
+names(var_imp_list) <- y_cols
+
+# Store variable importance in data frame
+var_pred_dat <- as.data.frame(do.call(cbind, var_pred_list))
+names(var_pred_dat) <- paste0(colnames(var_pred_dat), '_pred')
+var_imp_dat <- as.data.frame(do.call(cbind, var_imp_list))
+
+# Join predicted values to original data frame
+dat <- cbind(dat, var_pred_dat)
+
+rm(var_pred_list, var_imp_list)
 
 
 
