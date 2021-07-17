@@ -114,7 +114,8 @@ best_RF_model <- function(y_var, dat) {
   
   # Accuracy on test data
   test <- dat_test[which(!is.na(dat_test[[y_var]])), ]
-  cat(paste0('Accuracy on Test Data: ', sum(diag(table(test[, y_var], test$pred))) / sum(table(test[, y_var], test$pred)),
+  cat(paste0('Accuracy on Test Data: ',
+             sum(diag(table(test[, y_var], test$pred))) / sum(table(test[, y_var], test$pred)),
              '\nConfusion Matrix:'))
   
   # Check that predictions line up reasonably well with train data set
@@ -129,7 +130,7 @@ best_RF_model <- function(y_var, dat) {
 # Get best model predictions and variable importance for each y variable
 var_pred_list <- list()
 var_imp_list <- list()
-for (var in y_cols[1:3]) {
+for (var in y_cols) {
   best_RF_model(y_var = var, dat = dat)
   cat(paste0('--------------------\n'))
   var_pred_list[[length(var_pred_list) + 1]] <- var_pred
