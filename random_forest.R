@@ -102,7 +102,7 @@ best_RF_model <- function(y_var, dat) {
     mtry            = results[y_var, ]$mtry,
     min.node.size   = results[y_var, ]$node_size,
     sample.fraction = results[y_var, ]$sampe_size,
-    importance      = 'impurity',
+    importance      = 'permutation',
     seed            = 123
   )
   
