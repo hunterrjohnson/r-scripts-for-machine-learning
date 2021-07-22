@@ -1,6 +1,6 @@
 # Random forest model using grid search w/ ranger package
 
-lapply(c('dplyr','data.table','mlr','ranger'), library, character.only = TRUE)
+lapply(c('dplyr','data.table','ranger','caret'), library, character.only = TRUE)
 
 setwd('')
 
