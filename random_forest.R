@@ -20,49 +20,60 @@ rm(x_cols)
 #===============================================================================
 # Random forest with grid search
 
-grid_search_rf <- function(y_var, dat){
+# Hyperparameters for grid search
+hyper_grid <- expand.grid(
+  mtry       = seq(2, 14, by = 1),
+  node_size  = seq(1, 13, by = 4),
+  samp_size = c(.625, .75, .875)
+)
+
+# Grid search RF function
+grid_search_rf <- function(y_var, dat, grid){
   
-  # Subset to non-missing y variables
+  # Subset to non-missing variables
   dat <- dat[which(!is.na(dat[[y_var]])), ]
   
-  # Hyperparameter grid search
-  hyper_grid <- expand.grid(
-    mtry       = seq(2, 9, by = 1),
-    node_size  = seq(1, 13, by = 4),
-    sampe_size = c(.625, .75, .875)
-  )
+  # Train/test split
+  set.seed(123)
+  dat_split <- initial_split(dat, prop = .75)
+  dat_train <- training(dat_split)
+  dat_test  <- testing(dat_split)
   
-  for(i in 1:nrow(hyper_grid)) {
+  for(i in 1:nrow(grid)) {
     
-    # print current iteration
-    cat(paste0('Iteration: ', i, ' of ', nrow(hyper_grid)), '\n')
+    # Print current iteration
+    cat(paste0('Iteration: ', i, ' of ', nrow(grid)), '\n')
     
-    # train model
+    # Train model
     model <- ranger(
-      formula         = dat[[y_var]]~var1+var2+var3+var4+var5,
-      data            = dat,
+      formula         = dat_train[[y_var]]~var1+var2+var3+var4+var5,
+      data            = dat_train, 
       classification  = TRUE,
       num.trees       = 500,
-      mtry            = hyper_grid$mtry[i],
-      min.node.size   = hyper_grid$node_size[i],
-      sample.fraction = hyper_grid$sampe_size[i],
+      mtry            = grid$mtry[i],
+      min.node.size   = grid$node_size[i],
+      sample.fraction = grid$samp_size[i],
       seed            = 123
     )
     
-    # add percent correct to grid
-    hyper_grid$rf_pct_correct[i] <- (1 - model$prediction.error)
+    # Add OOB metrics to grid
+    grid$oob_accuracy[i] <- (1 - model$prediction.error)
+    grid$oob_sensitivity[i] <- (model$confusion.matrix[1,1] / sum(model$confusion.matrix[1,]))
+    grid$oob_specificity[i] <- (model$confusion.matrix[2,2] / sum(model$confusion.matrix[2,]))
     
-    # add sensitivity/specificity
-    hyper_grid$rf_sensitivity[i] <- (model$confusion.matrix[1,1] / sum(model$confusion.matrix[1,]))
-    hyper_grid$rf_specificity[i] <- (model$confusion.matrix[2,2] / sum(model$confusion.matrix[2,]))
+    # Predict on test data
+    pred <- predict(model, dat_test)
+    dat_test$pred <- pred$predictions
+    
+    # Add test metrics to grid
+    grid$test_accuracy[i] <- sum(diag(table(dat_test[, y_var], dat_test$pred))) / sum(table(dat_test[, y_var], dat_test$pred))
+    grid$test_sensitivity[i] <- sensitivity(table(dat_test$pred, dat_test[, y_var]))
+    grid$test_specificity[i] <- specificity(table(dat_test$pred, dat_test[, y_var]))
+    
   }
   
-  hyper_grid %>% 
-    dplyr::arrange(desc(rf_pct_correct)) %>%
-    head(10)
-  
-  # Store best parameters and results
-  gs_results <<- hyper_grid %>% dplyr::arrange(desc(rf_pct_correct)) %>% head(1)
+  # Store best parameters and results arranged by test accuracy
+  gs_results <<- grid %>% dplyr::arrange(desc(test_accuracy)) %>% head(1)
   row.names(gs_results) <<- as.character(y_var)
   
 }
@@ -72,13 +83,13 @@ start_time <- Sys.time()
 best_parameters <- list()
 for (var in y_cols) {
   cat(paste0("Variable: ", var, "\n")) # print current variable
-  grid_search_rf(y_var = var, dat = dat)
+  grid_search_rf(y_var = var, dat = dat, grid = hyper_grid)
   best_parameters[[length(best_parameters) + 1]] <- gs_results
 }
 end_time <- Sys.time()
 end_time - start_time
 
-# Store parameters and results of best models in data frame
+# Store results in data frame
 results <- as.data.frame(do.call(rbind, best_parameters))
 
 rm(gs_results, best_parameters)
@@ -101,7 +112,7 @@ best_RF_model <- function(y_var, dat) {
     num.trees       = 500,
     mtry            = results[y_var, ]$mtry,
     min.node.size   = results[y_var, ]$node_size,
-    sample.fraction = results[y_var, ]$sampe_size,
+    sample.fraction = results[y_var, ]$samp_size,
     importance      = 'permutation',
     seed            = 123
   )
@@ -140,7 +151,7 @@ names(var_pred_list) <- y_cols
 names(var_imp_list) <- y_cols
 
 # Store variable importance in data frame
-var_pred_dat <- as.data.frame(do.call(cbind, var_pred_list))
+var_pred_dat <- as.data.frame(do.call(cbind, var_pred_list)) - 1
 names(var_pred_dat) <- paste0(colnames(var_pred_dat), '_pred')
 var_imp_dat <- as.data.frame(do.call(cbind, var_imp_list))
 
